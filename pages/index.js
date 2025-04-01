@@ -8,14 +8,20 @@ export default function Home() {
 
   const generatePrompt = async () => {
     setLoading(true)
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, systemLayer }),
-    })
-    const data = await res.json()
-    setOutput(data.result)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal, systemLayer }),
+      })
+
+      const data = await res.json()
+      setOutput(data.output || 'Geen output ontvangen.')
+    } catch (error) {
+      setOutput('Fout bij ophalen van prompt.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -36,7 +42,7 @@ export default function Home() {
       <button onClick={generatePrompt} disabled={loading}>
         {loading ? 'Even wachten...' : 'Genereer Prompt'}
       </button>
-      <pre style={{ background: '#111', color: '#0f0', padding: '1rem', marginTop: '2rem' }}>
+      <pre style={{ background: '#111', color: '#0f0', padding: '1rem', marginTop: '2rem', whiteSpace: 'pre-wrap' }}>
         {output}
       </pre>
     </main>
