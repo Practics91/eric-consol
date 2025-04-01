@@ -1,0 +1,1 @@
+{ "builds": [{ "src": "pages/index.js", "use": "@vercel/node" }] }
