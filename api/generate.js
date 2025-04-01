@@ -1,17 +1,13 @@
 export default async function handler(req, res) {
-  try {
-    const { goal, systemLayer } = req.body
+  const { goal, systemLayer } = req.body
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ result: 'Geen API key ingesteld.' })
-    }
-
-    const prompt = `Analyseer deze situatie vanuit systeemlogica.\n
+  const prompt = `Analyseer deze situatie vanuit systeemlogica.\n
 Doel: ${goal || '[doel]'}\n
 Systeemlaag: ${systemLayer || '[systeemlaag]'}\n\n
 Geef een scherpe, functionele prompt terug in ritmisch heldere taal. Vermijd sociaal plamuur en modetaal. Richt op gedrag, rol, structuur of richting. Voeg optioneel een tweede versie toe in neutralere toon.`
 
-    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -24,24 +20,40 @@ Geef een scherpe, functionele prompt terug in ritmisch heldere taal. Vermijd soc
       }),
     })
 
-    if (!openaiRes.ok) {
-      const errorText = await openaiRes.text()
-      console.error('OpenAI API fout:', errorText)
-      return res.status(500).json({ result: 'OpenAI fout: ' + errorText })
+    const result = await response.json()
+    console.log('OpenAI response (GPT-4):', result)
+
+    if (result.choices?.[0]?.message?.content) {
+      return res.status(200).json({ result: result.choices[0].message.content })
+    } else if (result.error) {
+      console.warn('GPT-4 failed, trying gpt-3.5-turbo…', result.error)
+
+      // Fallback naar GPT-3.5
+      const fallback = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.6,
+        }),
+      })
+
+      const fallbackResult = await fallback.json()
+      console.log('Fallback (GPT-3.5) response:', fallbackResult)
+
+      return res.status(200).json({
+        result:
+          fallbackResult.choices?.[0]?.message?.content || 'Geen output ontvangen van GPT-3.5.',
+      })
+    } else {
+      throw new Error('Geen geldige response van OpenAI.')
     }
-
-    const result = await openaiRes.json()
-    const content = result.choices?.[0]?.message?.content
-
-    if (!content) {
-      console.error('Lege output van OpenAI:', result)
-      return res.status(500).json({ result: 'OpenAI gaf geen geldige output.' })
-    }
-
-    res.status(200).json({ result: content })
-
-  } catch (error) {
-    console.error('Serverfout:', error)
-    res.status(500).json({ result: 'Interne serverfout bij ophalen prompt.' })
+  } catch (err) {
+    console.error('API error:', err)
+    return res.status(500).json({ result: 'Fout bij ophalen van prompt.' })
   }
 }
